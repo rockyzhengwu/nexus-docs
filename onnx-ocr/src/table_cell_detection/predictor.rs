@@ -1,0 +1,80 @@
+use std::path::Path;
+
+use anyhow::Result;
+use image::{Rgb, RgbImage};
+use imageproc::{
+    geometric_transformations::{Interpolation, warp_into},
+    point::Point,
+};
+use ndarray::Ix2;
+use ort::{
+    inputs,
+    session::Session,
+    value::{Tensor, TensorRef},
+};
+
+use crate::{
+    common::{imgproc::load_image, onnx::load_session, quad::Quad},
+    table_cell_detection::{postprocess::PostProcessor, preprocess::PreProcessor},
+};
+
+#[derive(Debug)]
+pub struct DetectResult {
+    pub label: String,
+    pub coordinate: [f32; 4],
+    pub score: f32,
+}
+
+impl DetectResult {}
+
+pub struct TableCellDetector {
+    sess: Session,
+    pre_processor: PreProcessor,
+    post_processor: PostProcessor,
+}
+
+impl TableCellDetector {
+    pub fn try_new<P: AsRef<Path>>(model_path: P) -> Result<Self> {
+        let sess = load_session(model_path)?;
+        let pre_processor = PreProcessor::default();
+        let post_processor = PostProcessor::default();
+        Ok(Self {
+            sess,
+            pre_processor,
+            post_processor,
+        })
+    }
+
+    pub fn predict_path<P: AsRef<Path>>(&mut self, img_path: P) -> Result<Vec<DetectResult>> {
+        let img = load_image(img_path)?;
+        self.predict_image(&img)
+    }
+
+    pub fn predict_image(&mut self, img: &RgbImage) -> Result<Vec<DetectResult>> {
+        let pre_output = self.pre_processor.process(img)?;
+        let input = pre_output.get_input_as_ndarray();
+
+        let outputs = self
+            .sess
+            .run(inputs![
+                "image" =>TensorRef::from_array_view(&input).unwrap(), 
+                "im_shape"=>Tensor::from_array(([1, 2],vec![640.0_f32,640.0])).unwrap(),
+                "scale_factor"=>Tensor::from_array(([1, 2],vec![pre_output.ratio_h,pre_output.ratio_w])).unwrap()]
+            ).unwrap();
+
+        let output = outputs["fetch_name_0"].try_extract_array::<f32>().unwrap();
+        let preds = output.squeeze();
+        let bitmap = preds.into_dimensionality::<Ix2>()?.to_owned();
+        let boxes_result = self.post_processor.process(&bitmap)?;
+        let mut results = Vec::new();
+        for obj in boxes_result.iter() {
+            let det_res = DetectResult {
+                label: "cell".to_string(),
+                coordinate: obj.coordinate,
+                score: obj.score,
+            };
+            results.push(det_res);
+        }
+        Ok(results)
+    }
+}
