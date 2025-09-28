@@ -1,12 +1,12 @@
-use std::path::Path;
+use std::{cell::RefCell, path::Path, rc::Rc};
 
 use anyhow::Result;
-use image::{Rgb, RgbImage};
+use image::RgbImage;
 use ndarray::Ix2;
 use ort::{inputs, session::Session, value::Tensor, value::TensorRef};
 
 use crate::{
-    common::{imgproc::load_image, onnx::load_session, quad::Quad},
+    common::{imgproc::load_image, onnx::load_session},
     doc_layout::{postprocess::PostProcessor, preprocess::PreProcessor},
 };
 
@@ -18,14 +18,14 @@ pub struct DetectResult {
 }
 
 pub struct LayoutPredictor {
-    sess: Session,
+    sess: Rc<RefCell<Session>>,
     pre_processor: PreProcessor,
     post_processor: PostProcessor,
 }
 
 impl LayoutPredictor {
     pub fn try_new<P: AsRef<Path>>(model_path: P) -> Result<Self> {
-        let sess = load_session(model_path)?;
+        let sess = Rc::new(RefCell::new(load_session(model_path)?));
         let pre_processor = PreProcessor::default();
         let post_processor = PostProcessor::default();
         Ok(Self {
@@ -40,13 +40,13 @@ impl LayoutPredictor {
         self.predict_image(&img)
     }
 
-    pub fn predict_image(&mut self, img: &RgbImage) -> Result<Vec<DetectResult>> {
+    pub fn predict_image(&self, img: &RgbImage) -> Result<Vec<DetectResult>> {
         let img_width = img.width();
         let img_height = img.height();
         let pre_output = self.pre_processor.process(&img)?;
         let input = pre_output.get_input_as_ndarray();
-        let outputs = self
-            .sess
+        let mut sess = self.sess.borrow_mut();
+        let outputs =sess
             .run(inputs![
                 "image" =>TensorRef::from_array_view(&input).unwrap(), 
                 "im_shape"=>Tensor::from_array(([1, 2],vec![800.0_f32,800.0])).unwrap(),

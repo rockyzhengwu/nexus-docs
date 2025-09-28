@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::{cell::RefCell, path::Path, rc::Rc};
 
 use anyhow::Result;
 use image::{Rgb, RgbImage};
@@ -13,10 +13,6 @@ use crate::{
     common::{imgproc::load_image, onnx::load_session, quad::Quad},
     text_detection::{postprocess::PostProcessor, preprocess::PreProcessor},
 };
-
-pub struct TextDetectConfig {
-    name: String,
-}
 
 #[derive(Debug)]
 pub struct DetectResult {
@@ -48,14 +44,14 @@ impl DetectResult {
 }
 
 pub struct TextDetectionPredictor {
-    sess: Session,
+    sess: Rc<RefCell<Session>>,
     pre_processor: PreProcessor,
     post_processor: PostProcessor,
 }
 
 impl TextDetectionPredictor {
     pub fn try_new<P: AsRef<Path>>(model_path: P) -> Result<Self> {
-        let sess = load_session(model_path)?;
+        let sess = Rc::new(RefCell::new(load_session(model_path)?));
         let pre_processor = PreProcessor::default();
         let post_processor = PostProcessor::default();
         Ok(Self {
@@ -67,15 +63,15 @@ impl TextDetectionPredictor {
 
     pub fn predict_path<P: AsRef<Path>>(&mut self, img_path: P) -> Result<DetectResult> {
         let img = load_image(img_path)?;
-        self.predict_image(img)
+        self.predict_image(&img)
     }
 
-    pub fn predict_image(&mut self, img: RgbImage) -> Result<DetectResult> {
+    pub fn predict_image(&self, img: &RgbImage) -> Result<DetectResult> {
         let pre_output = self.pre_processor.process(img)?;
         let input = pre_output.get_input_as_ndarray();
+        let mut sess = self.sess.borrow_mut();
 
-        let outputs = self
-            .sess
+        let outputs = sess
             .run(inputs!["x" => TensorRef::from_array_view(&input).unwrap()])
             .unwrap();
 

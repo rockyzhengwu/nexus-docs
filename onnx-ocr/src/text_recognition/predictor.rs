@@ -2,7 +2,7 @@ use anyhow::Result;
 use image::RgbImage;
 use ndarray::{Array4, Ix2};
 use ort::{inputs, session::Session, value::TensorRef};
-use std::{collections::HashMap, fs::File, io::BufReader, path::Path};
+use std::{cell::RefCell, collections::HashMap, fs::File, io::BufReader, path::Path, rc::Rc};
 
 use crate::{
     common::onnx::load_session,
@@ -10,7 +10,7 @@ use crate::{
 };
 
 pub struct TextRecognitionPredictor {
-    sess: Session,
+    sess: Rc<RefCell<Session>>,
     character_dict: HashMap<u32, String>,
     pre_processor: PreProcessor,
     post_processor: PostProcessor,
@@ -25,7 +25,7 @@ fn load_character_dict<P: AsRef<Path>>(path: P) -> Result<HashMap<u32, String>> 
 
 impl TextRecognitionPredictor {
     pub fn try_new<P: AsRef<Path>>(model_path: P, character_path: P) -> Result<Self> {
-        let sess = load_session(model_path)?;
+        let sess = Rc::new(RefCell::new(load_session(model_path)?));
         let pre_processor = PreProcessor::default();
         let post_processor = PostProcessor::default();
         let character_dict = load_character_dict(character_path)?;
@@ -37,7 +37,7 @@ impl TextRecognitionPredictor {
         })
     }
 
-    pub fn predict(&mut self, images: Vec<RgbImage>) -> Result<Vec<(String, f32)>> {
+    pub fn predict(&self, images: Vec<RgbImage>) -> Result<Vec<(String, f32)>> {
         let mut predicted_text = Vec::new();
         for img in images {
             let input_img = self.pre_processor.process(&img);
@@ -55,8 +55,8 @@ impl TextRecognitionPredictor {
                     input[[0, 2, y, x]] = r;
                 }
             }
-            let outputs = self
-                .sess
+            let mut sess = self.sess.borrow_mut();
+            let outputs = sess
                 .run(inputs!["x" => TensorRef::from_array_view(&input).unwrap()])
                 .unwrap();
             let output = outputs["fetch_name_0"].try_extract_array::<f32>().unwrap();

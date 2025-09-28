@@ -10,8 +10,6 @@ use crate::common::imgproc::convert_rgb_to_rgb32f;
 pub struct PreProcessor {
     max_side_limit: usize,
     limit_side_len: usize,
-    mean: [f32; 3],
-    std: [f32; 3],
     alpha: [f32; 3],
     beta: [f32; 3],
 }
@@ -44,17 +42,12 @@ impl PreOutput {
 
 impl Default for PreProcessor {
     fn default() -> Self {
-        let mean = [0.485, 0.456, 0.406];
-        let std = [0.229, 0.224, 0.225];
         let alpha = [1.0 / 0.229, 1.0 / 0.224, 1.0 / 0.225];
         let beta = [-0.485 / 0.229, -0.456 / 0.224, -0.406 / 0.225];
 
-        println!("beta alpha:{:?},{:?}", alpha, beta);
         PreProcessor {
             max_side_limit: 4000,
             limit_side_len: 960,
-            mean,
-            std,
             alpha,
             beta,
         }
@@ -62,13 +55,13 @@ impl Default for PreProcessor {
 }
 
 impl PreProcessor {
-    pub fn process(&self, img: RgbImage) -> Result<PreOutput> {
+    pub fn process(&self, img: &RgbImage) -> Result<PreOutput> {
         let w = img.width();
         let h = img.height();
         let paded_image = if (w + h) < 64 as u32 {
             self.pad_image(&img)
         } else {
-            img
+            img.to_owned()
         };
         let mut result = self.resize(&paded_image)?;
         let nimg = self.normalize(&result.input);

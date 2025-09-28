@@ -1,0 +1,10 @@
+[package]
+name = "layout"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+ab_glyph = "0.2.31"
+image = "0.25.8"
+imageproc = "0.25.0"
+onnx_ocr = {path="../../"}

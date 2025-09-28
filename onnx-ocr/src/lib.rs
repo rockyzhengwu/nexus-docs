@@ -1,8 +1,11 @@
 pub mod common;
 pub mod detect;
 pub mod doc_layout;
-pub mod ocr;
+pub mod model_context;
 pub mod pdf;
+pub mod pipeline;
+pub mod settings;
 pub mod table_cell_detection;
+pub mod table_cls;
 pub mod text_detection;
 pub mod text_recognition;

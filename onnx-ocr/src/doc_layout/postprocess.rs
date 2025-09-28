@@ -1,11 +1,6 @@
 use anyhow::Result;
-use clipper2_sys::{ClipperOffset, Path64, Point64};
-use image::{GrayImage, ImageBuffer, Luma};
-use imageproc::{
-    contours::find_contours, drawing::draw_polygon_mut, geometry::min_area_rect, point::Point,
-};
-use ndarray::{Array2, Axis, array};
-use serde_json::de;
+use imageproc::point::Point;
+use ndarray::{Array2, Axis};
 
 pub struct PostProcessor {
     pub threshold: f32,
