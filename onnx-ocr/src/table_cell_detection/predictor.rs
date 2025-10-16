@@ -1,11 +1,10 @@
+use std::cell::RefCell;
 use std::path::Path;
+use std::rc::Rc;
 
 use anyhow::Result;
-use image::{Rgb, RgbImage};
-use imageproc::{
-    geometric_transformations::{Interpolation, warp_into},
-    point::Point,
-};
+use image::RgbImage;
+
 use ndarray::Ix2;
 use ort::{
     inputs,
@@ -14,7 +13,7 @@ use ort::{
 };
 
 use crate::{
-    common::{imgproc::load_image, onnx::load_session, quad::Quad},
+    common::{imgproc::load_image, onnx::load_session},
     table_cell_detection::{postprocess::PostProcessor, preprocess::PreProcessor},
 };
 
@@ -28,14 +27,14 @@ pub struct DetectResult {
 impl DetectResult {}
 
 pub struct TableCellDetector {
-    sess: Session,
+    sess: Rc<RefCell<Session>>,
     pre_processor: PreProcessor,
     post_processor: PostProcessor,
 }
 
 impl TableCellDetector {
     pub fn try_new<P: AsRef<Path>>(model_path: P) -> Result<Self> {
-        let sess = load_session(model_path)?;
+        let sess = Rc::new(RefCell::new(load_session(model_path)?));
         let pre_processor = PreProcessor::default();
         let post_processor = PostProcessor::default();
         Ok(Self {
@@ -50,12 +49,13 @@ impl TableCellDetector {
         self.predict_image(&img)
     }
 
-    pub fn predict_image(&mut self, img: &RgbImage) -> Result<Vec<DetectResult>> {
+    pub fn predict_image(&self, img: &RgbImage) -> Result<Vec<DetectResult>> {
         let pre_output = self.pre_processor.process(img)?;
         let input = pre_output.get_input_as_ndarray();
+        let mut sess = self.sess.borrow_mut();
 
-        let outputs = self
-            .sess
+        let outputs =
+            sess
             .run(inputs![
                 "image" =>TensorRef::from_array_view(&input).unwrap(), 
                 "im_shape"=>Tensor::from_array(([1, 2],vec![640.0_f32,640.0])).unwrap(),

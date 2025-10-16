@@ -11,6 +11,7 @@ image = "0.25.8"
 imageproc = "0.25.0"
 itertools = "0.14.0"
 ndarray = "0.16.1"
+ndarray-stats = "0.6.0"
 ort = {version="2.0.0-rc.10"}
 pdfium-render = "0.8.35"
 serde_json = "1.0.143"

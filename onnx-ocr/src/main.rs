@@ -10,7 +10,6 @@ fn main() {
     let mut detect_predictor = TextDetectionPredictor::try_new(model_path).unwrap();
     let result = detect_predictor.predict_path(img_path).unwrap();
     let mut img = load_image(img_path).unwrap();
-    println!("raw_image: {},{}", img.width(), img.height());
     let red = Rgb([255_u8, 0_u8, 0_u8]);
     for bbox in result.bboxs.iter() {
         draw_line_segment_mut(

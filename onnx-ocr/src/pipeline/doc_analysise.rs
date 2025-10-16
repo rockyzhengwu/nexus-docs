@@ -9,9 +9,12 @@ pub fn doc_analysise(context: &ModelContext, img: &RgbImage) -> Result<()> {
     for obj in layout_result.iter() {
         match obj.label.as_str() {
             "paragraph_title" | "text" | "abstract" | "figure_title" | "reference"
-            | "doc_title" | "footnote" | "header" | "footer" | "aside_text" | "seal" => {}
+            | "doc_title" | "footnote" | "header" | "footer" | "aside_text" => {}
             "image" => {}
             "table" => {}
+            "seal" => {
+                println!("ignore seal");
+            }
             _ => {
                 println!("{}", obj.label);
             }

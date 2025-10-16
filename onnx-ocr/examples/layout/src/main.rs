@@ -7,8 +7,9 @@ use onnx_ocr::doc_layout::predictor::{DetectResult, LayoutPredictor};
 fn main() {
     let model_path = "/home/zhengwu/workspace/private/projects/paddle-ocr-onnx/onnx/pp-DocLayout_plus-L_infer/model.onnx";
 
-    let img_path =
-        "/home/zhengwu/workspace/private/projects/nexus-docs/onnx-ocr/test_images/table_layout.png";
+    //let img_path =
+    //    "/home/zhengwu/workspace/private/projects/nexus-docs/onnx-ocr/test_images/table_layout.png";
+    let img_path = "/home/zhengwu/workspace/private/projects/nexus-docs/onnx-ocr/test_images/table_layout_roate.png";
     let mut detect_predictor = LayoutPredictor::try_new(model_path).unwrap();
     let result = detect_predictor.predict_path(img_path).unwrap();
     let mut img = load_image(img_path).unwrap();
