@@ -19,7 +19,7 @@ pub struct BoxResult {
 }
 
 impl PostProcessor {
-    pub fn process(&self, pred: &Array2<f32>) -> Result<Vec<BoxResult>> {
+    pub fn process(&self, pred: &Array2<f32>, w: f32, h: f32) -> Result<Vec<BoxResult>> {
         let mut result = Vec::new();
         for (i, row) in pred.axis_iter(Axis(0)).enumerate() {
             let label = "cell".to_string();
@@ -27,7 +27,14 @@ impl PostProcessor {
             if score < self.threshold {
                 continue;
             }
-            let coordinate = [row[2], row[3], row[4], row[5]];
+            let minx = row[2].max(0.0);
+            let miny = row[3].max(0.0);
+            let maxx = row[4].min(w);
+            let maxy = row[5].min(h);
+            if minx > maxx || maxy < miny {
+                continue;
+            }
+            let coordinate = [minx, miny, maxx, maxy];
             let res = BoxResult {
                 coordinate,
                 label,

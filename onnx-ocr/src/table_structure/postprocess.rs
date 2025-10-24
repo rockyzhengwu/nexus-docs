@@ -43,16 +43,21 @@ impl PostProcessor {
             if max_index == 49 {
                 break;
             }
+            if max_index == 0 {
+                continue;
+            }
             let bbox = bbox_pred.row(row_idx).to_vec();
             let bbox: Vec<u32> = bbox
                 .iter()
                 .map(|v| (v.to_owned() * scale).round() as u32)
                 .collect();
-            bbox_list.push(bbox);
             let label = self.character.get(max_index);
             match label {
                 Some(ls) => {
                     labels.push(ls.to_owned());
+                    if ls == "td" || ls == "</td>" || ls == "<td></td>" {
+                        bbox_list.push(bbox);
+                    }
                 }
                 None => {
                     println!("invalid label index");

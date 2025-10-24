@@ -1,5 +1,6 @@
 use crate::{
     doc_layout::predictor::LayoutPredictor,
+    doc_text_ori::{self, predictor::DocTextOriPredictor},
     settings::{self, Settings},
     table_cell_detection::predictor::TableCellDetector,
     table_cls::predictor::TableClsPredictor,
@@ -19,6 +20,7 @@ pub struct ModelContext {
     pub wireless_table_cell_predictor: TableCellDetector,
     pub wired_table_structure_predictor: TableStructurePredictor,
     pub wireless_table_structure_predictor: TableStructurePredictor,
+    pub doc_text_ori_predictor: DocTextOriPredictor,
 }
 
 impl ModelContext {
@@ -45,6 +47,8 @@ impl ModelContext {
             settings.wireless_table_structure_model_path.as_str(),
             settings.wireless_table_structure_character_path.as_str(),
         )?;
+        let doc_text_ori_predictor =
+            DocTextOriPredictor::try_new(&settings.doc_text_ori_model_path)?;
 
         Ok(Self {
             settings,
@@ -56,6 +60,7 @@ impl ModelContext {
             wireless_table_cell_predictor,
             wired_table_structure_predictor,
             wireless_table_structure_predictor,
+            doc_text_ori_predictor,
         })
     }
 }

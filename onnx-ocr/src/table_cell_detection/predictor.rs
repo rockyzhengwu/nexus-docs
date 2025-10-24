@@ -17,14 +17,12 @@ use crate::{
     table_cell_detection::{postprocess::PostProcessor, preprocess::PreProcessor},
 };
 
-#[derive(Debug)]
-pub struct DetectResult {
+#[derive(Debug, Clone)]
+pub struct TableCelltResult {
     pub label: String,
     pub coordinate: [f32; 4],
     pub score: f32,
 }
-
-impl DetectResult {}
 
 pub struct TableCellDetector {
     sess: Rc<RefCell<Session>>,
@@ -44,12 +42,14 @@ impl TableCellDetector {
         })
     }
 
-    pub fn predict_path<P: AsRef<Path>>(&mut self, img_path: P) -> Result<Vec<DetectResult>> {
+    pub fn predict_path<P: AsRef<Path>>(&mut self, img_path: P) -> Result<Vec<TableCelltResult>> {
         let img = load_image(img_path)?;
         self.predict_image(&img)
     }
 
-    pub fn predict_image(&self, img: &RgbImage) -> Result<Vec<DetectResult>> {
+    pub fn predict_image(&self, img: &RgbImage) -> Result<Vec<TableCelltResult>> {
+        let img_width = img.width();
+        let img_height = img.height();
         let pre_output = self.pre_processor.process(img)?;
         let input = pre_output.get_input_as_ndarray();
         let mut sess = self.sess.borrow_mut();
@@ -65,10 +65,12 @@ impl TableCellDetector {
         let output = outputs["fetch_name_0"].try_extract_array::<f32>().unwrap();
         let preds = output.squeeze();
         let bitmap = preds.into_dimensionality::<Ix2>()?.to_owned();
-        let boxes_result = self.post_processor.process(&bitmap)?;
+        let boxes_result =
+            self.post_processor
+                .process(&bitmap, img_width as f32, img_height as f32)?;
         let mut results = Vec::new();
         for obj in boxes_result.iter() {
-            let det_res = DetectResult {
+            let det_res = TableCelltResult {
                 label: "cell".to_string(),
                 coordinate: obj.coordinate,
                 score: obj.score,

@@ -11,7 +11,7 @@ use crate::{
 };
 
 #[derive(Debug)]
-pub struct DetectResult {
+pub struct LayoutResult {
     pub label: String,
     pub coordinate: [f32; 4],
     pub score: f32,
@@ -35,12 +35,12 @@ impl LayoutPredictor {
         })
     }
 
-    pub fn predict_path<P: AsRef<Path>>(&mut self, img_path: P) -> Result<Vec<DetectResult>> {
+    pub fn predict_path<P: AsRef<Path>>(&mut self, img_path: P) -> Result<Vec<LayoutResult>> {
         let img = load_image(img_path)?;
         self.predict_image(&img)
     }
 
-    pub fn predict_image(&self, img: &RgbImage) -> Result<Vec<DetectResult>> {
+    pub fn predict_image(&self, img: &RgbImage) -> Result<Vec<LayoutResult>> {
         let img_width = img.width();
         let img_height = img.height();
         let pre_output = self.pre_processor.process(&img)?;
@@ -69,7 +69,7 @@ impl LayoutPredictor {
                     continue;
                 }
             }
-            let det_res = DetectResult {
+            let det_res = LayoutResult {
                 label: obj.label.clone(),
                 coordinate: obj.coordinate,
                 score: obj.score,
