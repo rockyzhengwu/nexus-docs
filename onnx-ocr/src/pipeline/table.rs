@@ -1,3 +1,5 @@
+use core::f32;
+
 use anyhow::Result;
 use image::{
     RgbImage,
@@ -8,7 +10,7 @@ use itertools::Itertools;
 use crate::{
     doc_text_ori::predictor::RotateAngle,
     model_context::ModelContext,
-    pipeline::ocr::{self},
+    pipeline::ocr::{self, OcrResultItem},
     table_cell_detection::predictor::TableCelltResult,
     table_cls::predictor::TableType,
 };
@@ -18,6 +20,10 @@ pub struct TableCell {
     pub coordinate: [f32; 4],
     pub score: f32,
     pub content: String,
+    pub row: u32,
+    pub col: u32,
+    pub col_span: u32,
+    pub row_span: u32,
 }
 
 impl TableCell {
@@ -26,130 +32,229 @@ impl TableCell {
             coordinate,
             score,
             content,
+            row: 0,
+            col: 0,
+            col_span: 1,
+            row_span: 1,
         }
     }
 }
 
-pub fn extract_table(context: &ModelContext, img: &RgbImage) -> Result<Table> {
+pub fn extract_table(
+    context: &ModelContext,
+    img: &RgbImage,
+    ocr_res: &[OcrResultItem],
+) -> Result<TableResult> {
     let doc_text_ori_predictor = &context.doc_text_ori_predictor;
     let doc_angle = doc_text_ori_predictor.predict_image(img)?;
-    let pre_img = match doc_angle {
-        RotateAngle::R0 => img.to_owned(),
-        RotateAngle::R90 => rotate90(img),
-        RotateAngle::R180 => rotate180(img),
-        RotateAngle::R270 => rotate270(img),
-    };
+    let mut ocr_res = ocr_res.to_owned();
+    let mut pre_img = img.to_owned();
+    match doc_angle {
+        RotateAngle::R0 => {}
+        RotateAngle::R90 => {
+            pre_img = rotate270(img);
+            ocr_res = ocr::ocr(context, &pre_img)?;
+        }
+        RotateAngle::R180 => {
+            pre_img = rotate180(img);
+            ocr_res = ocr::ocr(context, &pre_img)?;
+        }
+        RotateAngle::R270 => {
+            pre_img = rotate90(img);
+            ocr_res = ocr::ocr(context, &pre_img)?;
+        }
+    }
 
     let table_cls_predictor = &context.table_cls_predictor;
     let table_type = table_cls_predictor.predict_image(&pre_img)?;
     let table_cells_result = match table_type {
         TableType::Wired => {
             let predictor = &context.wired_table_cell_predictor;
-            predictor.predict_image(img)?
+            predictor.predict_image(&pre_img)?
         }
         TableType::Wireless => {
             let predictor = &context.wireless_table_cell_predictor;
-            predictor.predict_image(img)?
+            predictor.predict_image(&pre_img)?
         }
     };
     let table_cells_result = cells_det_result_nms(table_cells_result)?;
 
-    let table_structure = match table_type {
-        TableType::Wired => {
-            let predictor = &context.wired_table_structure_predictor;
-            predictor.predict_image(img)?
-        }
-        TableType::Wireless => {
-            let predictor = &context.wireless_table_structure_predictor;
-            predictor.predict_image(img)?
-        }
-    };
+    // 统计有多少行，多少列,
+    // 每行的高度，每列的宽度
+    // 根据上面信息构造 table
+    // TODO match ocr result with table cell, instead of ocr every table cell
+    for item in ocr_res.iter() {
+        println!("{}", item.content);
+    }
     let mut table_cells = Vec::new();
     for cell in table_cells_result.iter() {
-        let [x1, y1, x2, y2] = cell.coordinate;
-        let width = (x2 - x1).ceil() as u32;
-        let height = (y2 - y1).ceil() as u32;
-        let cell_img = crop_imm(img, x1.ceil() as u32, y1.ceil() as u32, width, height).to_image();
-        let cell_ocr_reslt = ocr::ocr(context, &cell_img)?;
-        let content = cell_ocr_reslt.iter().map(|v| &v.content).join("");
-        let table_cell = TableCell::new(cell.coordinate, cell.score, content);
-        table_cells.push(table_cell);
+        let ocr_items = match_ocr_items(&cell.coordinate, ocr_res.as_slice());
+        let mut content = String::new();
+        for item in ocr_items.iter() {
+            content.push_str(item.content.as_str());
+        }
+        // let cell_ocr_items =
+        //let cell_img = crop_imm(img, x1.ceil() as u32, y1.ceil() as u32, width, height).to_image();
+        //let cell_ocr_reslt = ocr::ocr(context, &cell_img)?;
+        //et content = cell_ocr_reslt.iter().map(|v| &v.content).join("\n");
+        let tcell = TableCell::new(cell.coordinate, cell.score, content);
+        table_cells.push(tcell);
     }
-    table_cells.sort_by(|a, b| a.coordinate[1].total_cmp(&b.coordinate[1]));
-    let mut rows = Vec::new();
-    let mut current_row = Vec::new();
-    let mut current_y = 0.0;
-    let mut start_row = true;
-    for tcell in table_cells {
-        let [x1, y1, x2, y2] = tcell.coordinate;
-        if start_row {
-            current_row.push(tcell);
-            current_y = y1;
-            start_row = false;
-        } else {
-            if (y1 - current_y).abs() < 10.0 {
-                current_row.push(tcell);
-            } else {
-                current_row.sort_by(|a, b| a.coordinate[0].total_cmp(&b.coordinate[0]));
-                rows.push(current_row.to_owned());
-                current_row.clear();
-                current_row.push(tcell);
-                current_y = y1;
-            }
+    if table_cells.is_empty() {
+        return Ok(TableResult {
+            cells: table_cells,
+            row_count: 0,
+            col_count: 0,
+        });
+    }
+
+    // TODO update cell row id an col_span
+
+    table_cells.sort_by(|a, b| a.coordinate[0].total_cmp(&b.coordinate[0]));
+    let all_x: Vec<f32> = table_cells.iter().map(|c| c.coordinate[0]).collect();
+    let last_x = table_cells.last().unwrap().coordinate[2];
+    let (col_ids, col_width) = calc_table_info(all_x, last_x);
+    for (i, cell) in table_cells.iter_mut().enumerate() {
+        let x = cell.coordinate[0];
+        let max_x = cell.coordinate[2];
+        let cell_w = max_x - x;
+        let col_id = col_ids[i];
+        let mut total_w = col_width[col_id as usize];
+        let mut col_span = 1;
+        while (total_w - cell_w).abs() > 10.0 && (x + total_w) < max_x {
+            total_w += col_width[(col_id + col_span) as usize];
+            col_span += 1;
+        }
+        cell.col = col_id;
+        if col_span > 1 {
+            cell.col_span = col_span
         }
     }
-    if !current_row.is_empty() {
-        current_row.sort_by(|a, b| a.coordinate[0].total_cmp(&b.coordinate[0]));
-        rows.push(current_row.to_owned());
+
+    table_cells.sort_by(|a, b| a.coordinate[1].total_cmp(&b.coordinate[1]));
+    let all_y: Vec<f32> = table_cells.iter().map(|c| c.coordinate[1]).collect();
+    let last_y = table_cells.last().unwrap().coordinate[3];
+    let (row_ids, row_height) = calc_table_info(all_y, last_y);
+    for (i, cell) in table_cells.iter_mut().enumerate() {
+        let y = cell.coordinate[1];
+        let max_y = cell.coordinate[3];
+        let cell_h = max_y - y;
+        let row_id = row_ids[i];
+        let mut total_h = row_height[row_id as usize];
+        let mut row_span = 1;
+        while (total_h - cell_h).abs() > 10.0 && (y + total_h) < max_y {
+            total_h += row_height[(row_id + row_span) as usize];
+            row_span += 1;
+        }
+        cell.row = row_id;
+        if row_span > 1 {
+            cell.row_span = row_span;
+        }
     }
-    let table = Table::new(rows, table_structure.table_labels);
+    table_cells.sort_by(|a, b| {
+        if a.row != b.row {
+            a.row.cmp(&b.row)
+        } else {
+            a.col.cmp(&b.col)
+        }
+    });
+
+    let table = TableResult {
+        cells: table_cells,
+        row_count: row_height.len() as u32,
+        col_count: col_width.len() as u32,
+    };
+
     Ok(table)
 }
 
 #[derive(Debug)]
-pub struct Table {
-    rows: Vec<Vec<TableCell>>,
-    structure: Vec<String>,
+pub struct TableResult {
+    cells: Vec<TableCell>,
+    col_count: u32,
+    row_count: u32,
 }
 
-impl Table {
-    pub fn new(rows: Vec<Vec<TableCell>>, structure: Vec<String>) -> Self {
-        Table { rows, structure }
-    }
-
-    pub fn rows(&self) -> &[Vec<TableCell>] {
-        self.rows.as_slice()
-    }
-
+impl TableResult {
     pub fn to_html(&self) -> String {
-        // TODO if structure not match cells results
-        let mut html_tags: Vec<String> = Vec::new();
-        let mut cell_index = 0;
-        let mut row_index = 0;
-        for tag in self.structure.iter() {
-            match tag.as_str() {
-                "<td></td>" => {
-                    let cell = &self.rows[row_index][cell_index];
-                    html_tags.push(format!("<td>{}</td>", cell.content));
-                    cell_index += 1;
-                }
-                "</td>" => {
-                    let cell = &self.rows[row_index][cell_index];
-                    html_tags.push(cell.content.clone());
-                    html_tags.push("</td>".to_string());
-                    cell_index += 1;
-                }
-                "</tr>" => {
-                    cell_index = 0;
-                    row_index += 1;
-                }
-                _ => {
-                    html_tags.push(tag.to_owned());
-                }
+        if self.cells.is_empty() {
+            return String::new();
+        }
+        let mut html = "<table><tbody><tr>".to_string();
+        let mut current_row = 0;
+        for cell in self.cells.iter() {
+            if cell.row != current_row {
+                current_row = cell.row;
+                html.push_str("</tr><tr>");
+                let td = self.format_cell(cell);
+                html.push_str(td.as_str());
+            } else {
+                let td = self.format_cell(cell);
+                html.push_str(td.as_str());
             }
         }
-        html_tags.join("")
+        html.push_str("</tr></tbody></table>");
+        html
     }
+    pub fn format_cell(&self, cell: &TableCell) -> String {
+        if cell.row_span > 1 {
+            if cell.col_span > 1 {
+                format!(
+                    "<td colspan=\"{}\" rowspan=\"{}\">{}</td>",
+                    cell.col_span, cell.row_span, cell.content
+                )
+            } else {
+                format!("<td rowspan=\"{}\">{}</td>", cell.row_span, cell.content)
+            }
+        } else {
+            if cell.col_span > 1 {
+                format!("<td colspan=\"{}\">{}</td>", cell.col_span, cell.content)
+            } else {
+                format!("<td>{}</td>", cell.content)
+            }
+        }
+    }
+}
+
+fn calc_table_info(all_value: Vec<f32>, last_value: f32) -> (Vec<u32>, Vec<f32>) {
+    let cell_num = all_value.len();
+
+    let mut row_indexs: Vec<u32> = Vec::with_capacity(cell_num);
+    let mut row_height: Vec<f32> = Vec::with_capacity(cell_num);
+
+    let mut current_y: f32 = 0.0;
+    let mut current_row: u32 = 0;
+    let mut tmp_y = Vec::new();
+    for (i, y) in all_value.iter().enumerate() {
+        if i == 0 {
+            current_y = *y;
+            row_indexs.push(current_row);
+            tmp_y.push(current_y);
+        } else {
+            if (y - current_y).abs() < 10.0 {
+                row_indexs.push(current_row);
+                current_y = *y;
+                tmp_y.push(current_y);
+            } else {
+                let min_y = tmp_y.iter().fold(f32::INFINITY, |a, b| a.min(*b));
+                let height = y - min_y;
+                tmp_y.clear();
+                row_height.push(height);
+
+                current_y = *y;
+                current_row += 1;
+                row_indexs.push(current_row);
+                tmp_y.push(current_y);
+            }
+        }
+    }
+    if !tmp_y.is_empty() {
+        current_row += 1;
+        row_indexs.push(current_row);
+        let height = last_value - tmp_y.iter().fold(f32::INFINITY, |a, b| a.min(*b));
+        row_height.push(height);
+    }
+    (row_indexs, row_height)
 }
 
 fn cells_det_result_nms(cells_det_results: Vec<TableCelltResult>) -> Result<Vec<TableCelltResult>> {
@@ -181,4 +286,23 @@ fn compute_iou(box1: &[f32; 4], box2: &[f32; 4]) -> f32 {
     let area_box2 = (box2[2] - box2[0]) * (box2[3] - box2[1]);
     let iou = intersection_area / (area_box1 + area_box2 - intersection_area);
     iou
+}
+
+fn match_ocr_items(bbox: &[f32; 4], ocr_res: &[OcrResultItem]) -> Vec<OcrResultItem> {
+    let mut res = Vec::new();
+    let [tx1, ty1, tx2, ty2] = bbox;
+    for item in ocr_res.iter() {
+        let [ox1, oy1, ox2, oy2] = &item.bbox;
+        let x1 = ox1.max(*tx1);
+        let y1 = oy1.max(*ty1);
+        let x2 = ox2.min(*tx2);
+        let y2 = oy2.min(*ty2);
+        if x2 <= x1 || y2 <= y1 {
+            continue;
+        }
+        if ((x2 - x1) > 3.0) & ((y2 - y1) > 3.0) {
+            res.push(item.to_owned());
+        }
+    }
+    res
 }

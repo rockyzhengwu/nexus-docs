@@ -1,5 +1,4 @@
 use anyhow::Result;
-use imageproc::point::Point;
 use ndarray::{Array2, Axis};
 
 pub struct PostProcessor {
@@ -61,11 +60,4 @@ impl PostProcessor {
         }
         Ok(result)
     }
-}
-
-fn distance(p1: &Point<u32>, p2: &Point<u32>) -> f32 {
-    let d = ((p1.x as f32 - p2.x as f32) * (p1.x as f32 - p2.x as f32)
-        + (p1.y as f32 - p2.y as f32) * (p1.y as f32 - p2.y as f32))
-        .sqrt();
-    d
 }

@@ -2,8 +2,9 @@ use std::io::BufReader;
 use std::path::Path;
 
 use anyhow::Result;
-use image::RgbImage;
-use image::{ImageBuffer, ImageReader, Rgb, Rgb32FImage};
+use image::{GenericImage, RgbImage};
+use image::{ImageBuffer, ImageReader, Pixel, Rgb, Rgb32FImage};
+use imageproc::definitions::Image;
 use imageproc::point::Point;
 
 pub fn load_image<P: AsRef<Path>>(img_path: P) -> Result<RgbImage> {
@@ -32,4 +33,17 @@ pub fn convert_rgb_to_rgb32f(rgb_image: &ImageBuffer<Rgb<u8>, Vec<u8>>) -> Rgb32
 
 pub fn pointu32_to_pintf32(point: &Point<u32>) -> Point<f32> {
     Point::new(point.x as f32, point.y as f32)
+}
+
+pub fn rotate_clock_wise_90<P: Pixel>(image: &Image<P>) -> Image<P> {
+    let width = image.width();
+    let height = image.height();
+    let mut dest = ImageBuffer::new(height, width);
+    for r in 0..width {
+        for c in 0..height {
+            let pixel = image.get_pixel(r, c);
+            dest.put_pixel(height - c - 1, r, pixel.to_owned());
+        }
+    }
+    dest
 }

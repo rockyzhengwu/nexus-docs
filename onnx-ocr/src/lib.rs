@@ -1,6 +1,7 @@
 pub mod common;
 pub mod doc_layout;
 pub mod doc_text_ori;
+pub mod formula_rec;
 pub mod model_context;
 pub mod pdf;
 pub mod pipeline;

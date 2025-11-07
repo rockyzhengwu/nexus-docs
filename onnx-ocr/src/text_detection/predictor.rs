@@ -16,14 +16,14 @@ use crate::{
 
 #[derive(Debug)]
 pub struct DetectResult {
-    pub bboxs: Vec<Quad>,
+    pub polys: Vec<Quad>,
     pub scores: Vec<f32>,
 }
 
 impl DetectResult {
     pub fn crop_text_object(&self, img: RgbImage) -> Vec<RgbImage> {
         let mut res = Vec::new();
-        for bbox in self.bboxs.iter() {
+        for bbox in self.polys.iter() {
             if let Some(proj) = bbox.projection() {
                 let mut dest = RgbImage::new(bbox.width.round() as u32, bbox.height.round() as u32);
                 warp_into(
@@ -78,8 +78,9 @@ impl TextDetectionPredictor {
         let output = outputs["fetch_name_0"].try_extract_array::<f32>().unwrap();
         let preds = output.squeeze();
         let bitmap = preds.into_dimensionality::<Ix2>()?.to_owned();
+
         let boxes_result = self.post_processor.process(&bitmap)?;
-        let mut bboxs = Vec::new();
+        let mut polys = Vec::new();
         let mut scores = Vec::new();
 
         for b in boxes_result.iter() {
@@ -90,18 +91,18 @@ impl TextDetectionPredictor {
                 rescale_point(&dr, pre_output.ratio_w, pre_output.ratio_h),
                 rescale_point(&dl, pre_output.ratio_w, pre_output.ratio_h),
             ];
-            let bbox = Quad::new(otl, otr, odr, odl);
-            bboxs.push(bbox);
+            let poly = Quad::new(otl, otr, odr, odl);
+            polys.push(poly);
             scores.push(b.score);
         }
-        let result = DetectResult { bboxs, scores };
+        let result = DetectResult { polys, scores };
         Ok(result)
     }
 }
 
-fn rescale_point(p: &Point<u32>, ratio_w: f32, ratio_h: f32) -> Point<u32> {
-    Point::new(
-        (p.x as f32 * ratio_w).round() as u32,
-        (p.y as f32 * ratio_h).round() as u32,
-    )
+fn rescale_point(p: &Point<i32>, ratio_w: f32, ratio_h: f32) -> Point<f32> {
+    let x = p.x.max(0);
+    let y = p.y.max(0);
+
+    Point::new((x as f32 * ratio_w).round(), (y as f32 * ratio_h).round())
 }

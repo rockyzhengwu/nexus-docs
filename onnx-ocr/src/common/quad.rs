@@ -1,17 +1,36 @@
+use core::f32;
+
 use imageproc::{geometric_transformations::Projection, point::Point};
 
 #[derive(Debug, Clone)]
 pub struct Quad {
-    pub tl: Point<u32>,
-    pub tr: Point<u32>,
-    pub dr: Point<u32>,
-    pub dl: Point<u32>,
+    pub tl: Point<f32>,
+    pub tr: Point<f32>,
+    pub dr: Point<f32>,
+    pub dl: Point<f32>,
     pub width: f32,
     pub height: f32,
 }
 
 impl Quad {
-    pub fn new(tl: Point<u32>, tr: Point<u32>, dr: Point<u32>, dl: Point<u32>) -> Self {
+    pub fn new_from_bbox(bbox: &[f32; 4]) -> Self {
+        let [x1, y1, x2, y2] = bbox.to_owned();
+        let tl = Point::new(x1, y1);
+        let tr = Point::new(x2, y1);
+        let dr = Point::new(x2, y2);
+        let dl = Point::new(x1, y2);
+        let width = x2 - x1;
+        let height = y2 - y1;
+        Self {
+            tl,
+            tr,
+            dr,
+            dl,
+            width,
+            height,
+        }
+    }
+    pub fn new(tl: Point<f32>, tr: Point<f32>, dr: Point<f32>, dl: Point<f32>) -> Self {
         let dx = tr.x as f32 - tl.x as f32;
         let dy = tr.y as f32 - tl.y as f32;
         let width = ((dx * dx) + (dy * dy)).sqrt();
@@ -36,11 +55,27 @@ impl Quad {
             (0.0, self.height),
         ];
         let from = [
-            (self.tl.x as f32, self.tl.y as f32),
-            (self.tr.x as f32, self.tr.y as f32),
-            (self.dr.x as f32, self.dr.y as f32),
-            (self.dl.x as f32, self.dl.y as f32),
+            (self.tl.x, self.tl.y),
+            (self.tr.x, self.tr.y),
+            (self.dr.x, self.dr.y),
+            (self.dl.x, self.dl.y),
         ];
         Projection::from_control_points(from, to)
+    }
+    pub fn bbox(&self) -> [f32; 4] {
+        let x1 = [self.tl.x, self.tr.x, self.dr.x, self.dl.x]
+            .iter()
+            .fold(f32::MAX, |a: f32, &b| a.min(b));
+        let y1 = [self.tl.y, self.tr.y, self.dr.y, self.dl.y]
+            .iter()
+            .fold(f32::MAX, |a: f32, &b| a.min(b));
+
+        let x2 = [self.tl.x, self.tr.x, self.dr.x, self.dl.x]
+            .iter()
+            .fold(0.0, |a: f32, &b| a.max(b));
+        let y2 = [self.tl.y, self.tr.y, self.dr.y, self.dl.y]
+            .iter()
+            .fold(0.0_f32, |a, &b| a.max(b));
+        [x1, y1, x2, y2]
     }
 }

@@ -7,10 +7,10 @@ use std::{cell::RefCell, collections::HashMap, fs::File, io::BufReader, path::Pa
 use crate::{
     common::imgproc::load_image,
     common::onnx::load_session,
-    text_recognition::{postprocess::PostProcessor, preprocess::PreProcessor},
+    formula_rec::{postprocess::PostProcessor, preprocess::PreProcessor},
 };
 
-pub struct TextRecognitionPredictor {
+pub struct FormulaRecognitionPredictor {
     sess: Rc<RefCell<Session>>,
     character_dict: HashMap<u32, String>,
     pre_processor: PreProcessor,
@@ -24,7 +24,7 @@ fn load_character_dict<P: AsRef<Path>>(path: P) -> Result<HashMap<u32, String>> 
     return Ok(result);
 }
 
-impl TextRecognitionPredictor {
+impl FormulaRecognitionPredictor {
     pub fn try_new<P: AsRef<Path>>(model_path: P, character_path: P) -> Result<Self> {
         let sess = Rc::new(RefCell::new(load_session(model_path)?));
         let pre_processor = PreProcessor::default();
@@ -68,16 +68,8 @@ impl TextRecognitionPredictor {
             let outputs = sess
                 .run(inputs!["x" => TensorRef::from_array_view(&input)?])
                 .unwrap();
-
             let output = outputs["fetch_name_0"].try_extract_array::<f32>()?;
-            let shape = output.shape();
-            let height = shape[1].to_owned();
-            let width = shape[2].to_owned();
-            // let preds = output.squeeze();
-            let preds = output
-                .to_shape((height.to_owned(), width.to_owned()))
-                .unwrap();
-
+            let preds = output.squeeze();
             let preds = preds.into_dimensionality::<Ix2>()?.to_owned();
             let idx_score = self.post_processor.process(&preds)?;
             let mut content = String::new();

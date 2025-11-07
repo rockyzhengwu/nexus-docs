@@ -2,11 +2,13 @@ use image::{
     Rgb, Rgb32FImage, RgbImage,
     imageops::{FilterType, resize},
 };
+
 pub struct PreProcessor {
     rec_image_shape: [u32; 2],
     max_width: u32,
     ratio: f32,
 }
+
 impl Default for PreProcessor {
     fn default() -> Self {
         PreProcessor {
@@ -24,8 +26,9 @@ impl PreProcessor {
         let target_h = self.rec_image_shape[0];
         let target_w = self.rec_image_shape[1];
         let ratio = (width as f32) / (height as f32);
+
         if ratio > self.ratio {
-            let mut resized_w = (target_h as f32 * ratio).ceil() as u32;
+            let mut resized_w = (target_h as f32 * ratio).floor() as u32;
             if resized_w > self.max_width {
                 resized_w = self.max_width;
             }
@@ -33,7 +36,7 @@ impl PreProcessor {
             self.normalize(&out_image)
         } else {
             let input_w = target_w;
-            let resized_w = (target_h as f32 * ratio).ceil() as u32;
+            let resized_w = (target_h as f32 * ratio).floor() as u32;
             let resized_image = resize(img, resized_w, target_h, FilterType::Triangle);
             let mut out_image =
                 RgbImage::from_pixel(self.rec_image_shape[0], input_w, Rgb([0, 0, 0]));

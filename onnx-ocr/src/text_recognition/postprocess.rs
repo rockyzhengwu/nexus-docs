@@ -13,6 +13,9 @@ impl PostProcessor {
     pub fn process(&self, pred: &Array2<f32>) -> Result<Vec<(u32, f32)>> {
         let (h, w) = pred.dim();
         let mut result = Vec::new();
+        let mut idxs = Vec::new();
+        let mut scores = Vec::new();
+
         for i in 0..h {
             let mut max_index = 0;
             let mut max_score = 0.0;
@@ -23,7 +26,21 @@ impl PostProcessor {
                     max_index = j as u32;
                 }
             }
-            result.push((max_index, max_score));
+            idxs.push(max_index);
+            scores.push(max_score);
+        }
+        let num_char = idxs.len();
+        // remove duplicated
+        for i in 0..num_char - 1 {
+            let j = i + 1;
+            if i == 0 {
+                result.push((idxs[i], scores[i]));
+                continue;
+            }
+            if idxs[j] == idxs[i] {
+                continue;
+            }
+            result.push((idxs[j], scores[j]));
         }
         Ok(result)
     }
