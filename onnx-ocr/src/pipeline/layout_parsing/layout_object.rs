@@ -1,14 +1,7 @@
-use crate::{doc_layout::predictor::LayoutResult, model_context::ModelContext};
 use image::RgbImage;
-use std::{cmp::Ordering, collections::HashMap};
-use tracing_subscriber::filter::combinator::Or;
+use std::cmp::Ordering;
 
-use crate::{
-    common::quad::Quad, doc_layout::predictor::LayoutLabel, pipeline::ocr::OcrResultItem,
-    pipeline::table::extract_table,
-};
-use anyhow::Result;
-use image::imageops::crop_imm;
+use crate::{doc_layout::predictor::LayoutLabel, pipeline::ocr::OcrResultItem};
 
 #[derive(Debug, Clone)]
 pub struct TextSpan {
@@ -246,6 +239,9 @@ impl LayoutRegion {
             direction: Direction::Horizontal,
         }
     }
+    pub fn blocks(&self) -> &[LayoutBlock] {
+        self.blocks.as_slice()
+    }
 
     pub fn init_region_info(&mut self) {
         let mut horizone_num = 0;
@@ -289,11 +285,6 @@ impl LayoutRegion {
                 self.text_line_height,
             )
         });
-
-        for block in self.blocks.iter() {
-            println!("{}", block.content);
-        }
-        unimplemented!()
     }
 }
 

@@ -14,7 +14,7 @@ impl Default for PreProcessor {
         PreProcessor {
             rec_image_shape: [48, 320],
             max_width: 3200,
-            ratio: 48.0 / 320.0,
+            ratio: 320.0 / 48.0,
         }
     }
 }
@@ -24,23 +24,22 @@ impl PreProcessor {
         let width = img.width();
         let height = img.height();
         let target_h = self.rec_image_shape[0];
-        let target_w = self.rec_image_shape[1];
         let ratio = (width as f32) / (height as f32);
+        let max_wh_ratio = ratio.max(self.ratio);
+        let mut target_w = ((target_h as f32) * max_wh_ratio).ceil() as u32;
 
-        if ratio > self.ratio {
-            let mut resized_w = (target_h as f32 * ratio).floor() as u32;
-            if resized_w > self.max_width {
-                resized_w = self.max_width;
-            }
-            let out_image = resize(img, resized_w, target_h, FilterType::Triangle);
+        if target_w > self.max_width {
+            target_w = self.max_width;
+            let out_image = resize(img, target_w, target_h, FilterType::Triangle);
             self.normalize(&out_image)
         } else {
-            let input_w = target_w;
             let resized_w = (target_h as f32 * ratio).floor() as u32;
-            let resized_image = resize(img, resized_w, target_h, FilterType::Triangle);
-            let mut out_image =
-                RgbImage::from_pixel(self.rec_image_shape[0], input_w, Rgb([0, 0, 0]));
-            for x in 0..resized_w {
+            if resized_w < target_w {
+                target_w = resized_w;
+            }
+            let resized_image = resize(img, target_w, target_h, FilterType::Triangle);
+            let mut out_image = RgbImage::from_pixel(target_w, target_h, Rgb([0, 0, 0]));
+            for x in 0..target_w {
                 for y in 0..target_h {
                     let pixel = resized_image.get_pixel(x, y);
                     out_image.put_pixel(x, y, pixel.to_owned());
@@ -49,6 +48,7 @@ impl PreProcessor {
             self.normalize(&out_image)
         }
     }
+
     fn normalize(&self, img: &RgbImage) -> Rgb32FImage {
         let w = img.width();
         let h = img.height();

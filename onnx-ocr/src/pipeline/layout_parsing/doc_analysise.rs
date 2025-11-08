@@ -10,7 +10,7 @@ use crate::pipeline::table::extract_table;
 
 use anyhow::Result;
 use image::RgbImage;
-use image::imageops::crop_imm;
+use image::imageops::{crop_imm, rotate90};
 
 #[derive(Debug)]
 pub struct Document {
@@ -34,7 +34,7 @@ impl<'a> LayoutParser<'a> {
         LayoutParser { context }
     }
 
-    pub fn parse(&mut self, img: &RgbImage) -> Result<()> {
+    pub fn parse(&mut self, img: &RgbImage) -> Result<LayoutRegion> {
         let layout_predictor = &self.context.layout_predictor;
         let layout_result = layout_predictor.predict_image(&img)?;
         let mut all_ocr_res = ocr::ocr(self.context, img)?;
@@ -49,8 +49,7 @@ impl<'a> LayoutParser<'a> {
             &parsing_info,
         )?;
         region.sort_blocks();
-
-        unimplemented!()
+        Ok(region)
     }
 
     fn match_block_and_ocr(
@@ -81,10 +80,7 @@ impl<'a> LayoutParser<'a> {
                 max_y = max_y.max(block_y2);
             }
 
-            if obj.label != LayoutLabel::Formula
-                && obj.label != LayoutLabel::Table
-                && obj.label != LayoutLabel::Seal
-            {
+            if obj.label != LayoutLabel::Formula && obj.label != LayoutLabel::Seal {
                 let matched_ocr = get_sub_region_ocr_res(ocr_res, &[obj]);
                 for (_, ocr_id) in matched_ocr.iter().enumerate() {
                     if ocr_to_block.contains_key(&ocr_id) {
@@ -124,7 +120,11 @@ impl<'a> LayoutParser<'a> {
                     let crop_bbox = get_bbox_intersection(&ocr_bbox, &block.coordinate);
                     match crop_bbox {
                         Some(bbox) => {
-                            let sub_img = crop_sub_img(&bbox, img);
+                            let mut sub_img = crop_sub_img(&bbox, img);
+                            // TODO fix this
+                            if sub_img.width() < sub_img.height() {
+                                sub_img = rotate90(&sub_img);
+                            }
                             let text_rec_res =
                                 self.context.text_rec_predictor.predict(vec![sub_img])?;
                             let text = &text_rec_res[0];
@@ -139,7 +139,7 @@ impl<'a> LayoutParser<'a> {
                                     block_to_ocr
                                         .get_mut(block_id)
                                         .unwrap()
-                                        .remove(ocr_id.to_owned());
+                                        .retain(|v| v != ocr_id);
                                     block_to_ocr
                                         .get_mut(block_id)
                                         .unwrap()

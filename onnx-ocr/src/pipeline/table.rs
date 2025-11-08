@@ -83,9 +83,7 @@ pub fn extract_table(
     // 每行的高度，每列的宽度
     // 根据上面信息构造 table
     // TODO match ocr result with table cell, instead of ocr every table cell
-    for item in ocr_res.iter() {
-        println!("{}", item.content);
-    }
+
     let mut table_cells = Vec::new();
     for cell in table_cells_result.iter() {
         let ocr_items = match_ocr_items(&cell.coordinate, ocr_res.as_slice());

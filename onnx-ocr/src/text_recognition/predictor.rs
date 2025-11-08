@@ -51,6 +51,10 @@ impl TextRecognitionPredictor {
             let input_img = self.pre_processor.process(&img);
             let height = input_img.height();
             let width = input_img.width();
+            if width < height {
+                predicted_text.push(("".to_string(), 1.0));
+                continue;
+            }
 
             let mut input = Array4::<f32>::zeros((1, 3, height as usize, width as usize));
 
