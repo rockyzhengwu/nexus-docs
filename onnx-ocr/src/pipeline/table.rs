@@ -178,12 +178,14 @@ impl TableResult {
         if self.cells.is_empty() {
             return String::new();
         }
-        let mut html = "<table><tbody><tr>".to_string();
+        let mut html =
+            "<table style=\"  border-collapse: collapse; border: 2px solid black; \"><tbody><tr>"
+                .to_string();
         let mut current_row = 0;
         for cell in self.cells.iter() {
             if cell.row != current_row {
                 current_row = cell.row;
-                html.push_str("</tr><tr>");
+                html.push_str("</tr><tr style=\"border-bottom: 1px solid black;\">");
                 let td = self.format_cell(cell);
                 html.push_str(td.as_str());
             } else {
@@ -194,21 +196,31 @@ impl TableResult {
         html.push_str("</tr></tbody></table>");
         html
     }
+
     pub fn format_cell(&self, cell: &TableCell) -> String {
         if cell.row_span > 1 {
             if cell.col_span > 1 {
                 format!(
-                    "<td colspan=\"{}\" rowspan=\"{}\">{}</td>",
+                    "<td style=\"border: 1px solid gray; padding: 8px;\" colspan=\"{}\" rowspan=\"{}\">{}</td>",
                     cell.col_span, cell.row_span, cell.content
                 )
             } else {
-                format!("<td rowspan=\"{}\">{}</td>", cell.row_span, cell.content)
+                format!(
+                    "<td  style=\"border: 1px solid gray; padding: 8px;\" rowspan=\"{}\">{}</td>",
+                    cell.row_span, cell.content
+                )
             }
         } else {
             if cell.col_span > 1 {
-                format!("<td colspan=\"{}\">{}</td>", cell.col_span, cell.content)
+                format!(
+                    "<td  style=\"border: 1px solid gray; padding: 8px;\" colspan=\"{}\">{}</td>",
+                    cell.col_span, cell.content
+                )
             } else {
-                format!("<td>{}</td>", cell.content)
+                format!(
+                    "<td style=\"border: 1px solid gray; padding: 8px;\" >{}</td>",
+                    cell.content
+                )
             }
         }
     }

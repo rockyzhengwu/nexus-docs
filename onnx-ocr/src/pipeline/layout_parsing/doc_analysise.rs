@@ -212,10 +212,21 @@ impl<'a> LayoutParser<'a> {
                 }
                 LayoutLabel::Table => {
                     if let Some(ocr_ids) = parsing_info.block_to_ocr.get(&obj_id) {
+                        let table_x = obj.coordinate[0];
+                        let table_y = obj.coordinate[1];
                         let ocr_items: Vec<OcrResultItem> = ocr_ids
                             .iter()
-                            .map(|ocr_id| ocr_res[ocr_id.to_owned()].to_owned())
+                            .map(|ocr_id| {
+                                let mut item = ocr_res[ocr_id.to_owned()].to_owned();
+                                item.bbox[0] = (item.bbox[0] - table_x).max(0.0);
+                                item.bbox[1] = (item.bbox[1] - table_y).max(0.0);
+                                item.bbox[2] = (item.bbox[2] - table_x).max(0.0);
+                                item.bbox[3] = (item.bbox[3] - table_y).max(0.0);
+                                item
+                            })
                             .collect();
+                        println!("table ocr items: {:?}", ocr_items.len());
+                        // todo
                         let table_img = crop_sub_img(&obj.coordinate, img);
                         let table = extract_table(self.context, &table_img, ocr_items.as_slice())?;
                         block.set_table_content(table.to_html());

@@ -28,6 +28,7 @@ export default function PdfViewer({ pdfUrl }) {
       setPageNumber(pageNumber + 1);
     }
   };
+
   const prePage = () => {
     if (pageNumber === 1) {
       return;

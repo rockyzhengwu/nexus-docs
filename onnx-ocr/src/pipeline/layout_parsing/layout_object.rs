@@ -1,3 +1,4 @@
+use anyhow::Result;
 use image::RgbImage;
 use std::cmp::Ordering;
 
@@ -285,6 +286,42 @@ impl LayoutRegion {
                 self.text_line_height,
             )
         });
+    }
+
+    pub fn to_markdown(&self) -> Result<String> {
+        let mut markdown = String::new();
+        for block in self.blocks.iter() {
+            match block.label {
+                LayoutLabel::Table => {
+                    markdown.push_str(block.content.as_str());
+                    markdown.push_str("\n");
+                }
+                LayoutLabel::Image => {}
+                LayoutLabel::ParaGraphTitle => {
+                    markdown.push_str(format!("## {} \n", block.content).as_str());
+                }
+                LayoutLabel::Abstract | LayoutLabel::FigureTitle | LayoutLabel::DocTitle => {
+                    markdown.push_str(format!("# {} \n", block.content).as_str());
+                }
+                LayoutLabel::Footnote
+                | LayoutLabel::Header
+                | LayoutLabel::Number
+                | LayoutLabel::Footer
+                | LayoutLabel::Content
+                | LayoutLabel::Algorithm
+                | LayoutLabel::ReferenceContent
+                | LayoutLabel::Reference
+                | LayoutLabel::Text
+                | LayoutLabel::AsideText => {
+                    markdown.push_str(block.content.as_str());
+                    markdown.push_str("\n");
+                }
+                _ => {
+                    println!("not hanled label:{:?}", block.label);
+                }
+            }
+        }
+        Ok(markdown)
     }
 }
 

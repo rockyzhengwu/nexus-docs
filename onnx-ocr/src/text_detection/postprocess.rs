@@ -53,7 +53,7 @@ impl PostProcessor {
             let w = distance(&tl, &tr);
             let h = distance(&tr, &dr);
             let sside = w.min(h);
-            if sside < self.min_size + 2.0 {
+            if sside < self.min_size {
                 continue;
             }
             let score = self.box_score_fast(pred, &mar);

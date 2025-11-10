@@ -13,7 +13,7 @@ import {
 import { Plus } from "lucide-react";
 import { useAtom } from "jotai";
 import { pdfAtom, imgAtom, pdfUrlAtom, imgUrlAtom } from "@/state/input";
-import { ocrResultAtom } from "@/state/ai";
+import { ocrResultAtom, markdownContentAtom } from "@/state/ai";
 
 export default function AppSidebar() {
   const [pdf, setPdf] = useAtom(pdfAtom);
@@ -21,6 +21,7 @@ export default function AppSidebar() {
   const [pdfUrl, setPdfUrl] = useAtom(pdfUrlAtom);
   const [imgUrl, setImgUrl] = useAtom(imgUrlAtom);
   const [ocrResult, setOcrResult] = useAtom(ocrResultAtom);
+  const [markdownContent, setMarkdownContent] = useAtom(markdownContentAtom);
 
   function getFileExtension(filename) {
     const parts = filename.split(".");
@@ -49,10 +50,10 @@ export default function AppSidebar() {
       setImgUrl(url);
       const base64DataOnly2 = url.replace(/^data:[^;]+;base64,/, "");
       const buffer = base64ToArrayBuffer(base64DataOnly2);
-      console.log(buffer);
-      const result = await window.docAPI.ocr(buffer);
-
-      setOcrResult(result);
+      console.log("start doc api markdwon:", buffer);
+      const markdown = await window.docAPI.markdown(buffer);
+      setMarkdownContent(markdown);
+      console.log(markdown);
     } else if (url) {
       setPdfUrl(url);
     } else {

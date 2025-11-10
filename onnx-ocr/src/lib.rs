@@ -1,3 +1,4 @@
+pub mod api;
 pub mod common;
 pub mod doc_layout;
 pub mod doc_text_ori;

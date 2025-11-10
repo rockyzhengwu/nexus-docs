@@ -1,10 +1,7 @@
 use crate::{
-    doc_layout::predictor::LayoutPredictor,
-    doc_text_ori::{self, predictor::DocTextOriPredictor},
-    settings::{self, Settings},
-    table_cell_detection::predictor::TableCellDetector,
-    table_cls::predictor::TableClsPredictor,
-    table_structure::predictor::TableStructurePredictor,
+    doc_layout::predictor::LayoutPredictor, doc_text_ori::predictor::DocTextOriPredictor,
+    settings::Settings, table_cell_detection::predictor::TableCellDetector,
+    table_cls::predictor::TableClsPredictor, table_structure::predictor::TableStructurePredictor,
     text_detection::predictor::TextDetectionPredictor,
     text_recognition::predictor::TextRecognitionPredictor,
 };
